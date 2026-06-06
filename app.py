@@ -28,7 +28,7 @@ def home():
         a { color: #38bdf8; text-decoration: none; font-weight: 500; }
         a:hover { text-decoration: underline; }
         
-        /* Chỉnh thanh Progress Bar mượt mà */
+        /* Progress Bar mượt mà */
         progress { width: 100%; height: 20px; border-radius: 10px; margin-top: 15px; display: block; overflow: hidden; }
         progress::-webkit-progress-bar { background-color: #334155; }
         progress::-webkit-progress-value { background-color: #0284c7; transition: width 0.1s ease; }
@@ -36,6 +36,17 @@ def home():
         .file-item { border-bottom: 1px solid #334155; padding: 15px 0; }
         .file-item:last-child { border-bottom: none; }
         .status-text { margin-top: 8px; font-size: 14px; font-weight: 500; }
+        
+        /* CSS cho khung xem ảnh xịn mịn */
+        .preview-img { 
+            max-width: 100%; 
+            max-height: 250px; 
+            border-radius: 10px; 
+            margin-top: 12px; 
+            display: block; 
+            border: 1px solid #334155;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
     </style>
     </head>
     <body>
@@ -66,7 +77,7 @@ def home():
     for f in files:
         path = os.path.join(UPLOAD_FOLDER, f)
         try:
-            size = round(os.path.getsize(path) / (1024 * 1024), 2)  # Đổi ra MB cho chuẩn
+            size = round(os.path.getsize(path) / (1024 * 1024), 2)  # Đổi ra MB
             size_str = f"{size} MB" if size >= 0.1 else f"{round(os.path.getsize(path)/1024, 2)} KB"
         except:
             size_str = "Không rõ"
@@ -78,16 +89,24 @@ def home():
             <br><br>
             <a href="{link}">⬇ Tải về</a> | 
             <a href="/delete/{f}" style="color: #f87171;" onclick="return confirm('Chắc chắn xóa không ní?')">🗑 Xóa</a>
-        </div>
         """
+
+        # HIỂN THỊ ẢNH TRỰC TIẾP NẾU FILE LÀ ĐỊNH DẠNG ẢNH
+        if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
+            html += f"""
+            <br>
+            <img class="preview-img" src="/view/{f}">
+            """
+
+        html += "</div>"
 
     html += """
         </div>
     </div>
 
     <script>
-    const CHUNK_SIZE = 1024 * 1024; // Cắt nhỏ chính xác 1MB mỗi mảnh
-    const MAX_RETRIES = 5;          // Đấm lại tối đa 5 lần nếu rớt mạng mid-way
+    const CHUNK_SIZE = 1024 * 1024; // Cắt nhỏ file thành từng mảnh 1MB
+    const MAX_RETRIES = 5;          // Tự động up lại tối đa 5 lần nếu rớt mạng
 
     function startUpload() {
         let fileInput = document.getElementById("fileInput");
@@ -98,7 +117,6 @@ def home():
             return;
         }
 
-        // Khóa giao diện tránh người dùng bấm bậy khi đang up
         document.getElementById("uploadBtn").disabled = true;
         fileInput.disabled = true;
         
@@ -108,7 +126,6 @@ def home():
         document.getElementById("status").innerText = "Đang khởi tạo kết nối...";
         document.getElementById("status").style.color = "#94a3b8";
 
-        // Kích hoạt băm và up mảnh đầu tiên (Mảnh số 0, số lần thử lại = 0)
         uploadChunk(file, 0, 0);
     }
 
@@ -122,17 +139,14 @@ def home():
         formData.append("offset", start);
 
         let xhr = new XMLHttpRequest();
-        xhr.timeout = 20000; // Giới hạn 20 giây cho 1 mảnh 1MB (Quá dư dả)
+        xhr.timeout = 20000; // 20 giây quá hạn cho 1 mảnh 1MB
 
-        // Tính % tiến trình thông minh
         xhr.upload.addEventListener("progress", function(e) {
             if (e.lengthComputable) {
                 let totalUploaded = start + e.loaded;
                 let percent = Math.round((totalUploaded / file.size) * 100);
                 
-                // Mẹo tối mật: Giữ ở 99% để chờ server phản hồi xong mới lên 100%
-                if (percent >= 100 && end < file.size) percent = 99;
-                if (percent >= 100 && end >= file.size) percent = 99; 
+                if (percent >= 100) percent = 99; // Giữ ở 99% để chờ server phản hồi xong xuôi
 
                 document.getElementById("progressBar").value = percent;
                 document.getElementById("progressText").innerText = percent + "%";
@@ -141,14 +155,11 @@ def home():
             }
         });
 
-        // Khi server xử lý xong mảnh dữ liệu
         xhr.onload = function() {
             if (xhr.status == 200) {
                 if (end < file.size) {
-                    // Còn mảnh tiếp theo -> Tiếp tục up
                     uploadChunk(file, end, 0);
                 } else {
-                    // Mảnh cuối cùng đã lưu xong thành công hoàn toàn!
                     document.getElementById("progressBar").value = 100;
                     document.getElementById("progressText").innerText = "100%";
                     document.getElementById("status").innerText = "Thành công mỹ mãn! Đang làm mới trang...";
@@ -156,14 +167,12 @@ def home():
                     setTimeout(() => { location.reload(); }, 1500);
                 }
             } else {
-                // Server trả về lỗi hệ thống (502, 504...) -> Tự động thử lại
                 handleRetry(file, start, retries, "Server nghẽn (" + xhr.status + ")");
             }
         };
 
-        // Xử lý các trường hợp mạng chập chờn rớt gói tin
         xhr.onerror = function() { handleRetry(file, start, retries, "Mạng chập chờn"); };
-        xhr.ontimeout = function() { handleRetry(file, start, retries, "Mạng quá chậm (Timeout)"); };
+        xhr.ontimeout = function() { handleRetry(file, start, retries, "Mạng quá chậm"); };
 
         xhr.open("POST", "/upload");
         xhr.send(formData);
@@ -173,13 +182,13 @@ def home():
         if (retries < MAX_RETRIES) {
             let nextRetry = retries + 1;
             document.getElementById("status").innerText = `⚠️ ${reason}. Đang tự cứu lần ${nextRetry}/${MAX_RETRIES}...`;
-            document.getElementById("status").style.color = "#f59e0b"; // Chữ màu cam cảnh báo
+            document.getElementById("status").style.color = "#f59e0b";
             
             setTimeout(() => {
                 uploadChunk(file, start, nextRetry);
-            }, 2000); // Nghỉ 2 giây cho mạng ổn định lại rồi đấm tiếp
+            }, 2000);
         } else {
-            document.getElementById("status").innerText = "❌ Tải lên thất bại liên tiếp. Vui lòng kiểm tra lại 4G/Wifi!";
+            document.getElementById("status").innerText = "❌ Tải lên thất bại liên tiếp. Kiểm tra lại mạng nhen!";
             document.getElementById("status").style.color = "#f87171";
             document.getElementById("uploadBtn").disabled = false;
             document.getElementById("fileInput").disabled = false;
@@ -204,24 +213,29 @@ def upload():
 
         path = os.path.join(UPLOAD_FOLDER, filename)
 
-        # Cơ chế mở file an toàn tuyệt đối
         if offset == 0:
-            mode = "wb"  # Mảnh đầu tiên: Tạo file mới (hoặc đè file cũ nếu trùng tên)
+            mode = "wb"
         else:
             if not os.path.exists(path):
-                mode = "wb"  # Phòng hờ lỗi mất file giữa chừng thì tạo lại từ đầu
+                mode = "wb"
                 offset = 0
             else:
-                mode = "r+b" # Các mảnh tiếp theo: Mở ra để chèn vào vị trí tiếp theo
+                mode = "r+b"
 
         with open(path, mode) as f:
             if mode == "r+b":
-                f.seek(offset)  # Tìm đúng vị trí byte cũ để ghi đè (Tránh hỏng file khi Auto-Retry)
+                f.seek(offset)
             f.write(file.read())
 
         return jsonify({"status": "success"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+# ROUTE ĐỂ XEM ẢNH TRỰC TIẾP
+@app.route("/view/<filename>")
+def view(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename)
 
 
 @app.route("/download/<filename>")

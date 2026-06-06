@@ -9,196 +9,106 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @app.route("/", methods=["GET"])
 def home():
-
     files = os.listdir(UPLOAD_FOLDER)
 
     html = """
     <html>
-
     <head>
-
-    <title>My Cloud</title>
-
+    <title>⚡ My Cloud Siêu Cấp ⚡</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-
-    body{
-        background:#0f172a;
-        color:white;
-        font-family:Arial;
-        padding:20px;
-    }
-
-    .card{
-        background:#1e293b;
-        border-radius:15px;
-        padding:15px;
-        margin-bottom:15px;
-    }
-
-    button{
-        background:#2563eb;
-        color:white;
-        border:none;
-        padding:8px 12px;
-        border-radius:8px;
-        margin-top:5px;
-        cursor:pointer;
-    }
-
-    button:hover{
-        background:#1d4ed8;
-    }
-
-    input{
-        width:100%;
-        padding:8px;
-        border-radius:8px;
-        margin-top:5px;
-    }
-
-    a{
-        color:#60a5fa;
-        text-decoration:none;
-    }
-
-    img{
-        max-width:200px;
-        border-radius:10px;
-        margin-top:10px;
-    }
-
-    progress {
-        width: 100%;
-        height: 15px;
-        border-radius: 8px;
-        margin-top: 10px;
-    }
-    
-    progress::-webkit-progress-bar {
-        background-color: #334155;
-        border-radius: 8px;
-    }
-    
-    progress::-webkit-progress-value {
-        background-color: #2563eb;
-        border-radius: 8px;
-    }
-
+        body { background: #0f172a; color: white; font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; margin: 0; }
+        .container { max-width: 600px; margin: 0 auto; }
+        .card { background: #1e293b; border-radius: 15px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #38bdf8; margin-top: 10px; }
+        button { background: #2563eb; color: white; border: none; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; width: 100%; }
+        button:hover { background: #1d4ed8; }
+        button:disabled { background: #475569; cursor: not-allowed; }
+        input[type="file"] { width: 100%; padding: 10px; background: #334155; border-radius: 8px; color: #cbd5e1; border: 1px dashed #475569; box-sizing: border-box; }
+        a { color: #38bdf8; text-decoration: none; font-weight: 500; }
+        a:hover { text-decoration: underline; }
+        
+        /* Chỉnh thanh Progress Bar mượt mà */
+        progress { width: 100%; height: 20px; border-radius: 10px; margin-top: 15px; display: block; overflow: hidden; }
+        progress::-webkit-progress-bar { background-color: #334155; }
+        progress::-webkit-progress-value { background-color: #0284c7; transition: width 0.1s ease; }
+        
+        .file-item { border-bottom: 1px solid #334155; padding: 15px 0; }
+        .file-item:last-child { border-bottom: none; }
+        .status-text { margin-top: 8px; font-size: 14px; font-weight: 500; }
     </style>
-
     </head>
-
     <body>
+    <div class="container">
+        <h1>☁ My Cloud Pro</h1>
+        
+        <div class="card">
+            <input type="file" id="fileInput">
+            <br><br>
+            <button id="uploadBtn" onclick="startUpload()">Bắt đầu tải lên 🚀</button>
+            
+            <div id="progressContainer" style="display: none;">
+                <progress id="progressBar" value="0" max="100"></progress>
+                <div class="status-text">
+                    <span id="progressText" style="color: #38bdf8;">0%</span> - 
+                    <span id="status" style="color: #94a3b8;">Đang chuẩn bị...</span>
+                </div>
+            </div>
+        </div>
 
-    <h1>☁ My Cloud</h1>
+        <div class="card">
+            <h3 style="margin-top:0; border-bottom: 2px solid #38bdf8; padding-bottom: 8px;">📁 File Đã Lưu Trữ</h3>
+    """
 
-    <div class="card">
+    if not files:
+        html += "<p style='color:#64748b; text-align:center;'>Chưa có file nào được up lên ní ơi 🗿</p>"
 
-    <input type="file" id="fileInput">
+    for f in files:
+        path = os.path.join(UPLOAD_FOLDER, f)
+        try:
+            size = round(os.path.getsize(path) / (1024 * 1024), 2)  # Đổi ra MB cho chuẩn
+            size_str = f"{size} MB" if size >= 0.1 else f"{round(os.path.getsize(path)/1024, 2)} KB"
+        except:
+            size_str = "Không rõ"
 
-    <br><br>
+        link = f"/download/{f}"
+        html += f"""
+        <div class="file-item">
+            <b style="word-break: break-all; color: #f1f5f9;">{f}</b> <span style="color:#94a3b8; font-size:12px;">({size_str})</span>
+            <br><br>
+            <a href="{link}">⬇ Tải về</a> | 
+            <a href="/delete/{f}" style="color: #f87171;" onclick="return confirm('Chắc chắn xóa không ní?')">🗑 Xóa</a>
+        </div>
+        """
 
-    <button id="uploadBtn" onclick="startUpload()">
-    Upload
-    </button>
-
-    <div id="progressContainer" style="display: none; margin-top: 15px;">
-        <progress id="progressBar" value="0" max="100"></progress>
-        <div style="margin-top: 5px; font-size: 14px; color: #94a3b8;">
-            <span id="progressText">0%</span> - <span id="status">Đang chuẩn bị...</span>
+    html += """
         </div>
     </div>
 
-    </div>
-
-    <div class="card">
-
-    <h2>📁 File của bạn</h2>
-    """
-
-    for f in files:
-
-        path = os.path.join(UPLOAD_FOLDER, f)
-        
-        try:
-            size = round(os.path.getsize(path) / 1024, 2)
-        except:
-            size = 0
-
-        link = f"/download/{f}"
-
-        html += f"""
-
-        <div class="card">
-
-        <b>{f}</b>
-
-        <br>
-
-        📦 {size} KB
-
-        <br><br>
-
-        <a href="{link}">
-        ⬇ Tải xuống
-        </a>
-
-        |
-
-        <a href="/delete/{f}">
-        🗑 Xóa
-        </a>
-
-        <br><br>
-
-        <input
-        id="{f}"
-        value="{link}"
-        readonly>
-
-        <button
-        onclick="copyLink('{f}')">
-        Copy Link
-        </button>
-
-        """
-
-        if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
-
-            html += f"""
-            <br><br>
-
-            <img src="/view/{f}">
-            """
-
-        html += "</div>"
-
-    html += """
-
-    </div>
-
     <script>
-    
-    const CHUNK_SIZE = 1024 * 1024; // Cắt nhỏ file thành từng cục 1MB
-    const MAX_RETRIES = 5;         // Nếu rớt mạng, tự động up lại tối đa 5 lần
+    const CHUNK_SIZE = 1024 * 1024; // Cắt nhỏ chính xác 1MB mỗi mảnh
+    const MAX_RETRIES = 5;          // Đấm lại tối đa 5 lần nếu rớt mạng mid-way
 
-    function startUpload(){
+    function startUpload() {
         let fileInput = document.getElementById("fileInput");
         let file = fileInput.files[0];
 
-        if(!file){
-            alert("Chọn file đi 🗿");
+        if (!file) {
+            alert("Ní chưa chọn file kìa! 🗿");
             return;
         }
 
-        document.getElementById("uploadBtn").disabled = true; // Khóa nút tránh bấm trùng
+        // Khóa giao diện tránh người dùng bấm bậy khi đang up
+        document.getElementById("uploadBtn").disabled = true;
+        fileInput.disabled = true;
+        
         document.getElementById("progressContainer").style.display = "block";
         document.getElementById("progressBar").value = 0;
         document.getElementById("progressText").innerText = "0%";
-        document.getElementById("status").innerText = "Đang kết nối...";
+        document.getElementById("status").innerText = "Đang khởi tạo kết nối...";
         document.getElementById("status").style.color = "#94a3b8";
 
-        // Bắt đầu up mảnh đầu tiên (start = 0), số lần thử lại bằng 0
+        // Kích hoạt băm và up mảnh đầu tiên (Mảnh số 0, số lần thử lại = 0)
         uploadChunk(file, 0, 0);
     }
 
@@ -207,121 +117,116 @@ def home():
         let chunk = file.slice(start, end);
 
         let formData = new FormData();
-        formData.append("file", chunk);
+        formData.append("file", chunk, file.name);
         formData.append("filename", file.name);
-        formData.append("offset", start); // Gửi vị trí byte để server biết đường xếp mảnh
+        formData.append("offset", start);
 
         let xhr = new XMLHttpRequest();
+        xhr.timeout = 20000; // Giới hạn 20 giây cho 1 mảnh 1MB (Quá dư dả)
 
-        // Tính toán số % dựa trên tổng số byte đã truyền thành công
-        xhr.upload.addEventListener("progress", function(e){
-            if(e.lengthComputable){
-                let percent = Math.round(((start + e.loaded) / file.size) * 100);
+        // Tính % tiến trình thông minh
+        xhr.upload.addEventListener("progress", function(e) {
+            if (e.lengthComputable) {
+                let totalUploaded = start + e.loaded;
+                let percent = Math.round((totalUploaded / file.size) * 100);
+                
+                // Mẹo tối mật: Giữ ở 99% để chờ server phản hồi xong mới lên 100%
+                if (percent >= 100 && end < file.size) percent = 99;
+                if (percent >= 100 && end >= file.size) percent = 99; 
+
                 document.getElementById("progressBar").value = percent;
                 document.getElementById("progressText").innerText = percent + "%";
-                if(percent < 100) {
-                    document.getElementById("status").innerText = "Đang tải lên...";
-                    document.getElementById("status").style.color = "#94a3b8";
-                }
+                document.getElementById("status").innerText = `Đang tải lên... (${Math.round(end/(1024*1024))}/${Math.round(file.size/(1024*1024))} MB)`;
+                document.getElementById("status").style.color = "#38bdf8";
             }
         });
 
-        // Khi up xong mảnh hiện tại
-        xhr.onload = function(){
-            if(xhr.status == 200){
+        // Khi server xử lý xong mảnh dữ liệu
+        xhr.onload = function() {
+            if (xhr.status == 200) {
                 if (end < file.size) {
-                    // Up tiếp mảnh tiếp theo, reset số lần thử lại về 0
+                    // Còn mảnh tiếp theo -> Tiếp tục up
                     uploadChunk(file, end, 0);
                 } else {
-                    document.getElementById("status").innerText = "Upload xong xuôi nhen! Đang F5...";
+                    // Mảnh cuối cùng đã lưu xong thành công hoàn toàn!
+                    document.getElementById("progressBar").value = 100;
+                    document.getElementById("progressText").innerText = "100%";
+                    document.getElementById("status").innerText = "Thành công mỹ mãn! Đang làm mới trang...";
                     document.getElementById("status").style.color = "#4ade80"; 
-                    setTimeout(function() {
-                        location.reload();
-                    }, 1000);
+                    setTimeout(() => { location.reload(); }, 1500);
                 }
             } else {
-                // Server báo lỗi (Ví dụ lỗi 502, 504 do nghẽn mạng) -> Kích hoạt tự động thử lại
-                handleRetry(file, start, retries, "Lỗi phản hồi (" + xhr.status + ")");
+                // Server trả về lỗi hệ thống (502, 504...) -> Tự động thử lại
+                handleRetry(file, start, retries, "Server nghẽn (" + xhr.status + ")");
             }
         };
 
-        // Khi mạng chập chờn mất kết nối giữa chừng
-        xhr.onerror = function(){
-            handleRetry(file, start, retries, "Mạng chập chờn");
-        };
+        // Xử lý các trường hợp mạng chập chờn rớt gói tin
+        xhr.onerror = function() { handleRetry(file, start, retries, "Mạng chập chờn"); };
+        xhr.ontimeout = function() { handleRetry(file, start, retries, "Mạng quá chậm (Timeout)"); };
 
         xhr.open("POST", "/upload");
         xhr.send(formData);
     }
 
-    // Hàm xử lý tự động up lại mảnh bị lỗi
     function handleRetry(file, start, retries, reason) {
         if (retries < MAX_RETRIES) {
             let nextRetry = retries + 1;
-            document.getElementById("status").innerText = reason + `... Đang tự động thử lại lần ${nextRetry}/${MAX_RETRIES}`;
-            document.getElementById("status").style.color = "#f59e0b"; // Đổi chữ màu cam cảnh báo
+            document.getElementById("status").innerText = `⚠️ ${reason}. Đang tự cứu lần ${nextRetry}/${MAX_RETRIES}...`;
+            document.getElementById("status").style.color = "#f59e0b"; // Chữ màu cam cảnh báo
             
-            // Đợi 2 giây cho mạng ổn định rồi up lại đúng cái mảnh vừa lỗi
-            setTimeout(function() {
+            setTimeout(() => {
                 uploadChunk(file, start, nextRetry);
-            }, 2000);
+            }, 2000); // Nghỉ 2 giây cho mạng ổn định lại rồi đấm tiếp
         } else {
-            document.getElementById("status").innerText = "Thất bại liên tiếp! Vui lòng kiểm tra lại mạng mạng.";
+            document.getElementById("status").innerText = "❌ Tải lên thất bại liên tiếp. Vui lòng kiểm tra lại 4G/Wifi!";
             document.getElementById("status").style.color = "#f87171";
-            document.getElementById("uploadBtn").disabled = false; // Mở lại nút bấm
+            document.getElementById("uploadBtn").disabled = false;
+            document.getElementById("fileInput").disabled = false;
         }
     }
-
-    function copyLink(id){
-        var text = document.getElementById(id);
-        text.select();
-        navigator.clipboard.writeText(window.location.origin + text.value);
-        alert("Đã copy link");
-    }
-
     </script>
-
     </body>
-
     </html>
     """
-
     return html
 
 
 @app.route("/upload", methods=["POST"])
 def upload():
-    file = request.files.get("file")
-    filename = request.form.get("filename")
-    offset = int(request.form.get("offset", 0))
+    try:
+        file = request.files.get("file")
+        filename = request.form.get("filename")
+        offset = int(request.form.get("offset", 0))
 
-    if not file or not filename:
-        return jsonify({"status": "error"}), 400
+        if not file or not filename:
+            return jsonify({"status": "error", "message": "Dữ liệu trống"}), 400
 
-    path = os.path.join(UPLOAD_FOLDER, filename)
+        path = os.path.join(UPLOAD_FOLDER, filename)
 
-    # Chế độ mở file thông minh để chống hỏng file khi có Auto-Retry
-    if offset == 0:
-        mode = "wb"  # Mảnh đầu tiên: Tạo file mới tinh (Ghi đè nếu trùng tên cũ)
-    else:
-        mode = "r+b" # Mảnh tiếp theo: Mở file đang có sẵn để ghi tiếp vào giữa
+        # Cơ chế mở file an toàn tuyệt đối
+        if offset == 0:
+            mode = "wb"  # Mảnh đầu tiên: Tạo file mới (hoặc đè file cũ nếu trùng tên)
+        else:
+            if not os.path.exists(path):
+                mode = "wb"  # Phòng hờ lỗi mất file giữa chừng thì tạo lại từ đầu
+                offset = 0
+            else:
+                mode = "r+b" # Các mảnh tiếp theo: Mở ra để chèn vào vị trí tiếp theo
 
-    with open(path, mode) as f:
-        if offset > 0:
-            f.seek(offset) # Nhảy đúng đến vị trí byte bị thiếu để ghi, bất chấp việc bị up lại mảnh cũ
-        f.write(file.read())
+        with open(path, mode) as f:
+            if mode == "r+b":
+                f.seek(offset)  # Tìm đúng vị trí byte cũ để ghi đè (Tránh hỏng file khi Auto-Retry)
+            f.write(file.read())
 
-    return jsonify({"status": "success"})
+        return jsonify({"status": "success"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 @app.route("/download/<filename>")
 def download(filename):
     return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
-
-
-@app.route("/view/<filename>")
-def view(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename)
 
 
 @app.route("/delete/<filename>")
@@ -334,4 +239,4 @@ def delete(filename):
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
-    
+        

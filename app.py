@@ -3,6 +3,7 @@ import os
 
 app = Flask(__name__)
 
+# Quay lại dùng thư mục uploads trực tiếp trên server Render
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -14,7 +15,7 @@ def home():
     html = """
     <html>
     <head>
-    <title>⚡ My Cloud Siêu Cấp ⚡</title>
+    <title>⚡ My Cloud Tạm Thời Pro ⚡</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         body { background: #0f172a; color: white; font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; margin: 0; }
@@ -28,7 +29,7 @@ def home():
         a { color: #38bdf8; text-decoration: none; font-weight: 500; }
         a:hover { text-decoration: underline; }
         
-        /* Progress Bar mượt mà */
+        /* Thanh Progress Bar */
         progress { width: 100%; height: 20px; border-radius: 10px; margin-top: 15px; display: block; overflow: hidden; }
         progress::-webkit-progress-bar { background-color: #334155; }
         progress::-webkit-progress-value { background-color: #0284c7; transition: width 0.1s ease; }
@@ -37,7 +38,7 @@ def home():
         .file-item:last-child { border-bottom: none; }
         .status-text { margin-top: 8px; font-size: 14px; font-weight: 500; }
         
-        /* CSS cho khung xem ảnh xịn mịn */
+        /* Khung xem ảnh */
         .preview-img { 
             max-width: 100%; 
             max-height: 250px; 
@@ -47,11 +48,22 @@ def home():
             border: 1px solid #334155;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
+        
+        /* Khung phát video mới thêm nè ní */
+        .preview-video {
+            width: 100%;
+            max-height: 300px;
+            border-radius: 10px;
+            margin-top: 12px;
+            display: block;
+            background: #000;
+            border: 1px solid #334155;
+        }
     </style>
     </head>
     <body>
     <div class="container">
-        <h1>☁ My Cloud Pro</h1>
+        <h1>☁ My Cloud Pro (Local)</h1>
         
         <div class="card">
             <input type="file" id="fileInput">
@@ -68,35 +80,37 @@ def home():
         </div>
 
         <div class="card">
-            <h3 style="margin-top:0; border-bottom: 2px solid #38bdf8; padding-bottom: 8px;">📁 File Đã Lưu Trữ</h3>
+            <h3 style="margin-top:0; border-bottom: 2px solid #38bdf8; padding-bottom: 8px;">📁 File Đang Lưu Trữ</h3>
     """
 
     if not files:
-        html += "<p style='color:#64748b; text-align:center;'>Chưa có file nào được up lên ní ơi 🗿</p>"
+        html += "<p style='color:#64748b; text-align:center;'>Chưa có file nào trên server ní ơi 🗿</p>"
 
     for f in files:
         path = os.path.join(UPLOAD_FOLDER, f)
         try:
-            size = round(os.path.getsize(path) / (1024 * 1024), 2)  # Đổi ra MB
+            size = round(os.path.getsize(path) / (1024 * 1024), 2)
             size_str = f"{size} MB" if size >= 0.1 else f"{round(os.path.getsize(path)/1024, 2)} KB"
         except:
             size_str = "Không rõ"
 
-        link = f"/download/{f}"
+        view_link = f"/view/{f}"
         html += f"""
         <div class="file-item">
             <b style="word-break: break-all; color: #f1f5f9;">{f}</b> <span style="color:#94a3b8; font-size:12px;">({size_str})</span>
             <br><br>
-            <a href="{link}">⬇ Tải về</a> | 
-            <a href="/delete/{f}" style="color: #f87171;" onclick="return confirm('Chắc chắn xóa không ní?')">🗑 Xóa</a>
+            <a href="/download/{f}">⬇ Tải về</a> | 
+            <a href="/delete/{f}" style="color: #f87171;" onclick="return confirm('Xóa file này nha ní?')">🗑 Xóa</a>
         """
 
-        # HIỂN THỊ ẢNH TRỰC TIẾP NẾU FILE LÀ ĐỊNH DẠNG ẢNH
-        if f.lower().endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
-            html += f"""
-            <br>
-            <img class="preview-img" src="/view/{f}">
-            """
+        f_lower = f.lower()
+        # 1. KIỂM TRA NẾU LÀ FILE ẢNH
+        if f_lower.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
+            html += f'<br><img class="preview-img" src="{view_link}">'
+            
+        # 2. KIỂM TRA NẾU LÀ FILE VIDEO (Mới thêm)
+        elif f_lower.endswith((".mp4", ".webm", ".ogg", ".mov")):
+            html += f'<br><video class="preview-video" src="{view_link}" controls preload="metadata"></video>'
 
         html += "</div>"
 
@@ -105,8 +119,8 @@ def home():
     </div>
 
     <script>
-    const CHUNK_SIZE = 1024 * 1024; // Cắt nhỏ file thành từng mảnh 1MB
-    const MAX_RETRIES = 5;          // Tự động up lại tối đa 5 lần nếu rớt mạng
+    const CHUNK_SIZE = 1024 * 1024; // Cắt nhỏ file thành từng mảnh 1MB để bất tử khi up video nặng
+    const MAX_RETRIES = 5;          
 
     function startUpload() {
         let fileInput = document.getElementById("fileInput");
@@ -122,9 +136,8 @@ def home():
         
         document.getElementById("progressContainer").style.display = "block";
         document.getElementById("progressBar").value = 0;
-        document.getElementById("progressText").innerText = "0%";
-        document.getElementById("status").innerText = "Đang khởi tạo kết nối...";
-        document.getElementById("status").style.color = "#94a3b8";
+        document.getElementById("progressText").innerText = "0% ";
+        document.getElementById("status").innerText = "Đang kết nối...";
 
         uploadChunk(file, 0, 0);
     }
@@ -139,14 +152,13 @@ def home():
         formData.append("offset", start);
 
         let xhr = new XMLHttpRequest();
-        xhr.timeout = 20000; // 20 giây quá hạn cho 1 mảnh 1MB
+        xhr.timeout = 25000; 
 
         xhr.upload.addEventListener("progress", function(e) {
             if (e.lengthComputable) {
                 let totalUploaded = start + e.loaded;
                 let percent = Math.round((totalUploaded / file.size) * 100);
-                
-                if (percent >= 100) percent = 99; // Giữ ở 99% để chờ server phản hồi xong xuôi
+                if (percent >= 100) percent = 99; 
 
                 document.getElementById("progressBar").value = percent;
                 document.getElementById("progressText").innerText = percent + "%";
@@ -162,17 +174,17 @@ def home():
                 } else {
                     document.getElementById("progressBar").value = 100;
                     document.getElementById("progressText").innerText = "100%";
-                    document.getElementById("status").innerText = "Thành công mỹ mãn! Đang làm mới trang...";
+                    document.getElementById("status").innerText = "Hoàn thành! Đang làm mới trang...";
                     document.getElementById("status").style.color = "#4ade80"; 
                     setTimeout(() => { location.reload(); }, 1500);
                 }
             } else {
-                handleRetry(file, start, retries, "Server nghẽn (" + xhr.status + ")");
+                handleRetry(file, start, retries, "Lỗi server (" + xhr.status + ")");
             }
         };
 
         xhr.onerror = function() { handleRetry(file, start, retries, "Mạng chập chờn"); };
-        xhr.ontimeout = function() { handleRetry(file, start, retries, "Mạng quá chậm"); };
+        xhr.ontimeout = function() { handleRetry(file, start, retries, "Hết thời gian chờ"); };
 
         xhr.open("POST", "/upload");
         xhr.send(formData);
@@ -181,14 +193,11 @@ def home():
     function handleRetry(file, start, retries, reason) {
         if (retries < MAX_RETRIES) {
             let nextRetry = retries + 1;
-            document.getElementById("status").innerText = `⚠️ ${reason}. Đang tự cứu lần ${nextRetry}/${MAX_RETRIES}...`;
+            document.getElementById("status").innerText = `⚠️ ${reason}. Đang thử lại lần ${nextRetry}/${MAX_RETRIES}...`;
             document.getElementById("status").style.color = "#f59e0b";
-            
-            setTimeout(() => {
-                uploadChunk(file, start, nextRetry);
-            }, 2000);
+            setTimeout(() => { uploadChunk(file, start, nextRetry); }, 2000);
         } else {
-            document.getElementById("status").innerText = "❌ Tải lên thất bại liên tiếp. Kiểm tra lại mạng nhen!";
+            document.getElementById("status").innerText = "❌ Thất bại liên tiếp. Kiểm tra lại mạng nha!";
             document.getElementById("status").style.color = "#f87171";
             document.getElementById("uploadBtn").disabled = false;
             document.getElementById("fileInput").disabled = false;
@@ -232,7 +241,6 @@ def upload():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-# ROUTE ĐỂ XEM ẢNH TRỰC TIẾP
 @app.route("/view/<filename>")
 def view(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
@@ -253,4 +261,4 @@ def delete(filename):
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
-        
+    

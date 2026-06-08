@@ -1,9 +1,10 @@
-from flask import Flask, request, send_from_directory, redirect, jsonify
+from flask import Flask, request, send_from_directory, redirect, jsonify, Response
 import os
+import re
 
 app = Flask(__name__)
 
-# Quay lại dùng thư mục uploads trực tiếp trên server Render
+# Thư mục lưu trữ trực tiếp trên server Render
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
@@ -29,7 +30,6 @@ def home():
         a { color: #38bdf8; text-decoration: none; font-weight: 500; }
         a:hover { text-decoration: underline; }
         
-        /* Thanh Progress Bar */
         progress { width: 100%; height: 20px; border-radius: 10px; margin-top: 15px; display: block; overflow: hidden; }
         progress::-webkit-progress-bar { background-color: #334155; }
         progress::-webkit-progress-value { background-color: #0284c7; transition: width 0.1s ease; }
@@ -38,7 +38,6 @@ def home():
         .file-item:last-child { border-bottom: none; }
         .status-text { margin-top: 8px; font-size: 14px; font-weight: 500; }
         
-        /* Khung xem ảnh */
         .preview-img { 
             max-width: 100%; 
             max-height: 250px; 
@@ -49,7 +48,6 @@ def home():
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
         
-        /* Khung phát video mới thêm nè ní */
         .preview-video {
             width: 100%;
             max-height: 300px;
@@ -104,13 +102,12 @@ def home():
         """
 
         f_lower = f.lower()
-        # 1. KIỂM TRA NẾU LÀ FILE ẢNH
         if f_lower.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
             html += f'<br><img class="preview-img" src="{view_link}">'
             
-        # 2. KIỂM TRA NẾU LÀ FILE VIDEO (Mới thêm)
         elif f_lower.endswith((".mp4", ".webm", ".ogg", ".mov")):
-            html += f'<br><video class="preview-video" src="{view_link}" controls preload="metadata"></video>'
+            # Thêm playsinline để chạy mượt trên cả trình duyệt điện thoại
+            html += f'<br><video class="preview-video" src="{view_link}" controls preload="metadata" playsinline></video>'
 
         html += "</div>"
 
@@ -119,7 +116,7 @@ def home():
     </div>
 
     <script>
-    const CHUNK_SIZE = 1024 * 1024; // Cắt nhỏ file thành từng mảnh 1MB để bất tử khi up video nặng
+    const CHUNK_SIZE = 1024 * 1024; 
     const MAX_RETRIES = 5;          
 
     function startUpload() {
@@ -136,7 +133,7 @@ def home():
         
         document.getElementById("progressContainer").style.display = "block";
         document.getElementById("progressBar").value = 0;
-        document.getElementById("progressText").innerText = "0% ";
+        document.getElementById("progressText").innerText = "0%";
         document.getElementById("status").innerText = "Đang kết nối...";
 
         uploadChunk(file, 0, 0);
@@ -241,9 +238,56 @@ def upload():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+# CẬP NHẬT: Route xem file thông minh hỗ trợ Range Requests để xem video mượt mà
 @app.route("/view/<filename>")
 def view(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename)
+    path = os.path.join(UPLOAD_FOLDER, filename)
+    if not os.path.exists(path):
+        return "File không tồn tại", 404
+
+    # Nếu không phải video, gửi file như bình thường
+    if not filename.lower().endswith((".mp4", ".webm", ".ogg", ".mov")):
+        return send_from_directory(UPLOAD_FOLDER, filename)
+
+    # Xử lý Range Header cho Video phát trên điện thoại
+    file_size = os.path.getsize(path)
+    range_header = request.headers.get('Range', None)
+    
+    if not range_header:
+        return send_from_directory(UPLOAD_FOLDER, filename)
+
+    byte1, byte2 = None, None
+    match = re.search(r'bytes=(\d+)-(\d*)', range_header)
+    if match:
+        byte1 = match.group(1)
+        byte2 = match.group(2)
+
+    start = int(byte1) if byte1 else 0
+    end = int(byte2) if byte2 else file_size - 1
+    if end >= file_size:
+        end = file_size - 1
+    
+    length = end - start + 1
+
+    def generate():
+        with open(path, 'rb') as f:
+            f.seek(start)
+            chunk_size = 1024 * 1024  # Đọc từng block 1MB gửi đi
+            bytes_left = length
+            while bytes_left > 0:
+                to_read = min(chunk_size, bytes_left)
+                data = f.read(to_read)
+                if not data:
+                    break
+                bytes_left -= len(data)
+                yield data
+
+    # Trả về mã lỗi 206 (Partial Content) đúng chuẩn streaming video
+    resp = Response(generate(), 206, mimetype='video/mp4', content_type='video/mp4', direct_passthrough=True)
+    resp.headers.add('Content-Range', f'bytes {start}-{end}/{file_size}')
+    resp.headers.add('Accept-Ranges', 'bytes')
+    resp.headers.add('Content-Length', str(length))
+    return resp
 
 
 @app.route("/download/<filename>")
@@ -261,4 +305,4 @@ def delete(filename):
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
-    
+        
